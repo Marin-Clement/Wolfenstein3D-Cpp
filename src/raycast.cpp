@@ -1,10 +1,14 @@
-#include "raycast.hpp"
 #include <GLUT/glut.h>
 #include <cmath>
-#include <texture.hpp>
+
+#include "raycast.hpp"
+#include "texture.hpp"
+
 
 #define MAP_WIDTH 24
 #define MAP_HEIGHT 24
+
+GLuint shaderProgram;
 
 extern int worldMap[MAP_WIDTH][MAP_HEIGHT];
 extern float playerX;

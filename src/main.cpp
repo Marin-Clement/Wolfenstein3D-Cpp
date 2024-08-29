@@ -1,27 +1,40 @@
+// Preprocessor Directives
 #define GL_SILENCE_DEPRECATION
-#define GL_SILENCE_DEPRECATION
-#include <OpenGL/OpenGL.h> // Include for CGLContextObj and related functions
-#include <OpenGL/gl.h>    // Header File For The OpenGL32 Library
-#include <OpenGL/glu.h>   // Header File For The GLu32 Library
-#include <GLUT/glut.h>    // Header File For The GLut Library
-#include <cmath>          // Header File For Math functions
-#include <iostream>
-#include <sstream>
-#include <iomanip>
-#include <texture.hpp>
 
-#include "raycast.hpp"
+// Include Statements
+#include <OpenGL/OpenGL.h>  // For CGLContextObj and related functions
+#include <OpenGL/gl.h>      // OpenGL functions
+#include <OpenGL/glu.h>     // GLU functions
+#include <GLUT/glut.h>      // GLUT functions
+#include <cmath>            // Math functions
+#include <iostream>         // Standard I/O streams
+#include <sstream>          // String streams
+#include <iomanip>          // Input/Output manipulation
+#include <texture.hpp>      // Texture loading
+#include "raycast.hpp"      // Raycasting functionality
 
-#define kWindowWidth    1280
-#define kWindowHeight   720
+// Constants
+constexpr int kWindowWidth = 1280;
+constexpr int kWindowHeight = 720;
+constexpr int mapWidth = 24;
+constexpr int mapHeight = 24;
+constexpr float bufferDistance = 0.5f;
 
+// Globals
 int lastTime;
 int frameCount = 0;
 int fps = 0;
 int lastFPSUpdateTime = 0;
 
-const int mapWidth = 24;
-const int mapHeight = 24;
+float playerX = 6.0f;
+float playerY = 8.5f;
+float playerAngle = 0.0f;
+float movementSpeed = 5.0f;
+float rotationSpeed = 20.0f;
+
+bool keys[256] = {false}; // Key state array
+
+// Map Data
 int worldMap[mapWidth][mapHeight] = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     {1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1},
@@ -49,15 +62,55 @@ int worldMap[mapWidth][mapHeight] = {
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1}
 };
 
-float playerX = 6.0f;
-float playerY = 8.5f;
-float playerAngle = 0.0f;
-float movementSpeed = 5.0f;
-float rotationSpeed = 20.0f;
+// Function Declarations
+void update(float deltaTime);
+void displayText(float x, float y, const std::string &text);
+void updateFPS();
+void display();
+void reshape(int width, int height);
+void keyboard(unsigned char key, int x, int y);
+void keyboardUp(unsigned char key, int x, int y);
+void idle();
+void setupGLUT(int argc, char** argv);
+void disableVSync();
 
-bool keys[256]; // Array to keep track of which keys are pressed
+int main(int argc, char** argv) {
+    setupGLUT(argc, argv);
+    lastTime = glutGet(GLUT_ELAPSED_TIME);
+    disableVSync();
+    glutMainLoop();
+    return 0;
+}
 
-const float bufferDistance = 0.5f; // Define a small buffer distance
+// Function Definitions
+
+void setupGLUT(int argc, char** argv) {
+    glutInit(&argc, argv);
+    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
+    glutInitWindowSize(kWindowWidth, kWindowHeight);
+    glutCreateWindow("Wolfenstein 3D Clone");
+
+    glEnable(GL_DEPTH_TEST);
+
+    std::vector<std::string> textureFiles = {"../assets/wall.png", "../assets/wall1.png"};
+    loadTextures(textureFiles);
+
+    glutDisplayFunc(display);
+    glutReshapeFunc(reshape);
+    glutKeyboardFunc(keyboard);
+    glutKeyboardUpFunc(keyboardUp);
+    glutIdleFunc(idle);
+}
+
+void disableVSync() {
+#ifdef __APPLE__
+    GLint sync = 0;
+    CGLContextObj ctx = CGLGetCurrentContext();
+    CGLSetParameter(ctx, kCGLCPSwapInterval, &sync);
+#else
+    // Implement V-Sync disabling for other platforms here
+#endif
+}
 
 void update(float deltaTime) {
     float newX = playerX;
@@ -134,6 +187,7 @@ void display() {
 
     glutSwapBuffers();
 }
+
 void reshape(int width, int height) {
     glViewport(0, 0, width, height);
     glMatrixMode(GL_PROJECTION);
@@ -158,36 +212,4 @@ void idle() {
     update(deltaTime);
     updateFPS();
     glutPostRedisplay();
-}
-
-int main(int argc, char** argv) {
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowSize(kWindowWidth, kWindowHeight);
-    glutCreateWindow("Wolfenstein 3D Clone");
-
-    glEnable(GL_DEPTH_TEST);
-
-    std::vector<std::string> textureFiles = {"../assets/wall.png", "../assets/wall1.png"};
-    loadTextures(textureFiles);
-
-    lastTime = glutGet(GLUT_ELAPSED_TIME);
-
-    // Disable V-Sync
-#ifdef __APPLE__
-    GLint sync = 0;
-    CGLContextObj ctx = CGLGetCurrentContext();
-    CGLSetParameter(ctx, kCGLCPSwapInterval, &sync);
-#else
-    // For other platforms, use appropriate method to disable V-Sync
-#endif
-
-    glutDisplayFunc(display);
-    glutReshapeFunc(reshape);
-    glutKeyboardFunc(keyboard);
-    glutKeyboardUpFunc(keyboardUp);
-    glutIdleFunc(idle);
-
-    glutMainLoop();
-    return 0;
 }
