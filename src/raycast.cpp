@@ -1,11 +1,15 @@
-// raycast.cpp
 #include "raycast.hpp"
 #include <GLUT/glut.h>
 #include <cmath>
 #include "texture.hpp"
+#include <algorithm>
 
 #define MAP_WIDTH 24
 #define MAP_HEIGHT 24
+
+// Define fog parameters
+const float fogDensity = 0.2f;
+const float fogColor[3] = {0.5f, 0.5f, 0.5f}; // Gray fog
 
 struct Ray {
     float dirX, dirY;
@@ -21,10 +25,17 @@ struct Wall {
     float texCoordX, texCoordYStart, texCoordYEnd;
     int lineHeight;
     int textureIndex;
+    float perpWallDist;
 };
 
 void initializeOpenGL() {
     glEnable(GL_TEXTURE_2D);
+}
+
+void blendColor(float* color, const float* fogColor, float fogFactor) {
+    color[0] = color[0] * (1.0f - fogFactor) + fogColor[0] * fogFactor;
+    color[1] = color[1] * (1.0f - fogFactor) + fogColor[1] * fogFactor;
+    color[2] = color[2] * (1.0f - fogFactor) + fogColor[2] * fogFactor;
 }
 
 void calculateRayDirection(Ray &ray, float cameraX, float playerAngle) {
@@ -58,6 +69,13 @@ void drawWall(int x, const Wall &wall, int w) {
     glBegin(GL_QUADS);
     glColor3f(1.0f, 1.0f, 1.0f);
 
+    float fogFactor = 1.0f - exp(-fogDensity * wall.perpWallDist);
+    fogFactor = std::max(0.0f, std::min(1.0f, fogFactor));
+
+    float color[3] = {1.0f, 1.0f, 1.0f};
+    blendColor(color, fogColor, fogFactor);
+    glColor3f(color[0], color[1], color[2]);
+
     glTexCoord2f(wall.texCoordX, wall.texCoordYStart);
     glVertex2i(x, wall.drawStart);
 
@@ -72,6 +90,58 @@ void drawWall(int x, const Wall &wall, int w) {
 
     glEnd();
 }
+
+void drawFloor(int x, int drawStart, int drawEnd, const Ray &ray, const Player &player, int w, int h) {
+    const int floorTextureIndex = 12; // Change to the appropriate index
+
+    const int texWidth = 64;
+    const int texHeight = 64;
+
+    float rowDistance = (h / (2.0f * (drawStart - h / 2 + drawEnd / 2.0f))) / (drawStart - h / 2 + drawEnd / 2.0f);
+    float floorX = rowDistance * ray.dirX + player.getX();
+    float floorY = rowDistance * ray.dirY + player.getY();
+
+    // Precompute values
+    float invTexWidth = 1.0f / texWidth;
+    float invTexHeight = 1.0f / texHeight;
+
+    // Draw floor
+    glBindTexture(GL_TEXTURE_2D, textures[std::to_string(floorTextureIndex)]);
+
+    glBegin(GL_QUADS);
+    for (int y = drawEnd + 1; y < h; y++) {
+        float currentDist = h / (2.0f * y - h);
+
+        float weight = currentDist / rowDistance;
+
+        float currentFloorX = weight * floorX + (1.0f - weight) * player.getX();
+        float currentFloorY = weight * floorY + (1.0f - weight) * player.getY();
+
+        int floorTexX = int(currentFloorX * texWidth) % texWidth;
+        int floorTexY = int(currentFloorY * texHeight) % texHeight;
+
+        float fogFactor = 1.0f - exp(-fogDensity * currentDist);
+        fogFactor = std::max(0.0f, std::min(1.0f, fogFactor));
+
+        float color[3] = {1.0f, 1.0f, 1.0f};
+        blendColor(color, fogColor, fogFactor);
+        glColor3f(color[0], color[1], color[2]);
+
+        glTexCoord2f(floorTexX * invTexWidth, floorTexY * invTexHeight);
+        glVertex2i(x, y);
+
+        glTexCoord2f(floorTexX * invTexWidth, (floorTexY + 1) * invTexHeight);
+        glVertex2i(x, y + 1);
+
+        glTexCoord2f((floorTexX + 1) * invTexWidth, (floorTexY + 1) * invTexHeight);
+        glVertex2i(x + 1, y + 1);
+
+        glTexCoord2f((floorTexX + 1) * invTexWidth, floorTexY * invTexHeight);
+        glVertex2i(x + 1, y);
+    }
+    glEnd();
+}
+
 
 void castRays(const Player& player, const Map& map) {
     int w = glutGet(GLUT_WINDOW_WIDTH);
@@ -114,6 +184,8 @@ void castRays(const Player& player, const Map& map) {
         if (ray.side == 0) perpWallDist = (ray.mapX - player.getX() + (1 - ray.stepX) / 2) / ray.dirX;
         else perpWallDist = (ray.mapY - player.getY() + (1 - ray.stepY) / 2) / ray.dirY;
 
+
+        wall.perpWallDist = perpWallDist;
         wall.lineHeight = (int)(h / perpWallDist);
 
         wall.drawStart = -wall.lineHeight / 2 + h / 2;
@@ -137,7 +209,11 @@ void castRays(const Player& player, const Map& map) {
             wall.texCoordYEnd = (wall.lineHeight / 2.0f + h / 2.0f) / wall.lineHeight;
         }
 
+        // Draw the wall
         drawWall(x, wall, w);
+
+        // Draw the floor
+        drawFloor(x, wall.drawStart, wall.drawEnd, ray, player, w, h);
     }
 
     glDisable(GL_TEXTURE_2D);

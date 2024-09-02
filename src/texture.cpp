@@ -66,10 +66,9 @@ GLuint loadTexture(const std::string& filePath) {
 
         stbi_image_free(data);
         return textureID;
-    } else {
-        std::cerr << "Failed to load texture: " << filePath << " - " << stbi_failure_reason() << std::endl;
-        return createDefaultTexture();
     }
+    std::cerr << "Failed to load texture: " << filePath << " - " << stbi_failure_reason() << std::endl;
+    return createDefaultTexture();
 }
 
 
