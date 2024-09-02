@@ -105,11 +105,11 @@ void drawFloor(int x, int drawStart, int drawEnd, const Ray &ray, const Player &
     float invTexWidth = 1.0f / texWidth;
     float invTexHeight = 1.0f / texHeight;
 
-    // Draw floor
+    // Bind texture once
     glBindTexture(GL_TEXTURE_2D, textures[std::to_string(floorTextureIndex)]);
 
     glBegin(GL_QUADS);
-    for (int y = drawEnd + 1; y < h; y++) {
+    for (int y = drawEnd; y < h; y++) { // Start from drawEnd instead of drawEnd + 1
         float currentDist = h / (2.0f * y - h);
 
         float weight = currentDist / rowDistance;
@@ -127,16 +127,21 @@ void drawFloor(int x, int drawStart, int drawEnd, const Ray &ray, const Player &
         blendColor(color, fogColor, fogFactor);
         glColor3f(color[0], color[1], color[2]);
 
-        glTexCoord2f(floorTexX * invTexWidth, floorTexY * invTexHeight);
+        float texCoordX = floorTexX * invTexWidth;
+        float texCoordY = floorTexY * invTexHeight;
+        float texCoordY1 = (floorTexY + 1) * invTexHeight;
+        float texCoordX1 = (floorTexX + 1) * invTexWidth;
+
+        glTexCoord2f(texCoordX, texCoordY);
         glVertex2i(x, y);
 
-        glTexCoord2f(floorTexX * invTexWidth, (floorTexY + 1) * invTexHeight);
+        glTexCoord2f(texCoordX, texCoordY1);
         glVertex2i(x, y + 1);
 
-        glTexCoord2f((floorTexX + 1) * invTexWidth, (floorTexY + 1) * invTexHeight);
+        glTexCoord2f(texCoordX1, texCoordY1);
         glVertex2i(x + 1, y + 1);
 
-        glTexCoord2f((floorTexX + 1) * invTexWidth, floorTexY * invTexHeight);
+        glTexCoord2f(texCoordX1, texCoordY);
         glVertex2i(x + 1, y);
     }
     glEnd();
