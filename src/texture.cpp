@@ -1,10 +1,11 @@
+#define STB_IMAGE_IMPLEMENTATION
+
 #include "texture.hpp"
 #include <iostream>
 #include <unordered_map>
 #include <string>
-
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+#include <__filesystem/directory_iterator.h>
 
 std::unordered_map<std::string, GLuint> textures;
 
@@ -45,11 +46,25 @@ GLuint loadTexture(const std::string& filePath) {
         GLuint textureID;
         glGenTextures(1, &textureID);
         glBindTexture(GL_TEXTURE_2D, textureID);
-        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+
+        GLenum format;
+        if (nrChannels == 1)
+            format = GL_RED;
+        else if (nrChannels == 3)
+            format = GL_RGB;
+        else if (nrChannels == 4)
+            format = GL_RGBA;
+        else {
+            std::cerr << "Unsupported number of channels: " << nrChannels << std::endl;
+            stbi_image_free(data);
+            return createDefaultTexture();
+        }
+
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
         glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
         stbi_image_free(data);
-        std::cout << "Texture loaded successfully: " << filePath << std::endl;
         return textureID;
     } else {
         std::cerr << "Failed to load texture: " << filePath << " - " << stbi_failure_reason() << std::endl;
@@ -57,11 +72,23 @@ GLuint loadTexture(const std::string& filePath) {
     }
 }
 
-void loadTextures(const std::vector<std::string>& filePaths) {
-    for (const auto& filePath : filePaths) {
-        GLuint textureID = loadTexture(filePath);
-        if (textureID != 0) {
-            textures[filePath] = textureID;
-        }
+void printTextures() {
+    for (const auto& texture : textures) {
+        std::cout << "Texture: " << texture.first << " - ID: " << texture.second << std::endl;
     }
 }
+
+void loadTextures(const std::string& directoryPath) {
+    for (const auto& entry : std::__fs::filesystem::directory_iterator(directoryPath)) {
+        if (entry.is_regular_file()) {
+            std::string filePath = entry.path().string();
+            std::string baseName = entry.path().stem().string();
+            GLuint textureID = loadTexture(filePath);
+            if (textureID != 0) {
+                textures[baseName] = textureID;
+            }
+        }
+    }
+    printTextures();
+}
+

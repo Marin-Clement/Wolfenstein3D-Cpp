@@ -75,6 +75,7 @@ void setupGLUT(int argc, char** argv);
 void disableVSync();
 
 int main(int argc, char** argv) {
+    // print opengl version
     setupGLUT(argc, argv);
     lastTime = glutGet(GLUT_ELAPSED_TIME);
     disableVSync();
@@ -92,8 +93,7 @@ void setupGLUT(int argc, char** argv) {
 
     glEnable(GL_DEPTH_TEST);
 
-    std::vector<std::string> textureFiles = {"../assets/wall.png", "../assets/wall1.png"};
-    loadTextures(textureFiles);
+    loadTextures("../assets/textures");
 
     glutDisplayFunc(display);
     glutReshapeFunc(reshape);

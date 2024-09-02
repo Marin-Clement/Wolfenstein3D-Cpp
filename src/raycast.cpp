@@ -1,9 +1,11 @@
 #include <GLUT/glut.h>
 #include <cmath>
-
 #include "raycast.hpp"
-#include "texture.hpp"
 
+#include <iostream>
+#include <ostream>
+
+#include "texture.hpp"
 
 #define MAP_WIDTH 24
 #define MAP_HEIGHT 24
@@ -28,11 +30,11 @@ struct Wall {
     int drawStart, drawEnd;
     float texCoordX, texCoordYStart, texCoordYEnd;
     int lineHeight;
+    int textureIndex;
 };
 
 void initializeOpenGL() {
     glEnable(GL_TEXTURE_2D);
-    glBindTexture(GL_TEXTURE_2D, textures["../assets/wall.png"]);
 }
 
 void calculateRayDirection(Ray &ray, float cameraX) {
@@ -40,7 +42,7 @@ void calculateRayDirection(Ray &ray, float cameraX) {
     ray.dirY = sin(playerAngle) - cameraX * cos(playerAngle);
 }
 
-void performDDA(Ray &ray) {
+void performDDA(Ray &ray, Wall &wall) {
     int hit = 0;
 
     while (hit == 0) {
@@ -53,11 +55,16 @@ void performDDA(Ray &ray) {
             ray.mapY += ray.stepY;
             ray.side = 1;
         }
-        if (worldMap[ray.mapX][ray.mapY] > 0) hit = 1;
+        if (worldMap[ray.mapX][ray.mapY] > 0) {
+            hit = 1;
+            wall.textureIndex = worldMap[ray.mapX][ray.mapY];
+        }
     }
 }
 
 void drawWall(int x, const Wall &wall, int w) {
+    glBindTexture(GL_TEXTURE_2D, textures[std::to_string(wall.textureIndex - 1)]);
+
     glBegin(GL_QUADS);
     glColor3f(1.0f, 1.0f, 1.0f);
 
@@ -108,13 +115,13 @@ void castRays() {
             ray.sideDistY = (ray.mapY + 1.0 - playerY) * ray.deltaDistY;
         }
 
-        performDDA(ray);
+        Wall wall;
+        performDDA(ray, wall);
 
         float perpWallDist;
         if (ray.side == 0) perpWallDist = (ray.mapX - playerX + (1 - ray.stepX) / 2) / ray.dirX;
         else perpWallDist = (ray.mapY - playerY + (1 - ray.stepY) / 2) / ray.dirY;
 
-        Wall wall;
         wall.lineHeight = (int)(h / perpWallDist);
 
         wall.drawStart = -wall.lineHeight / 2 + h / 2;
