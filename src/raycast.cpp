@@ -1,19 +1,11 @@
+// raycast.cpp
+#include "raycast.hpp"
 #include <GLUT/glut.h>
 #include <cmath>
-#include "raycast.hpp"
-
-#include <iostream>
-#include <ostream>
-
 #include "texture.hpp"
 
 #define MAP_WIDTH 24
 #define MAP_HEIGHT 24
-
-extern int worldMap[MAP_WIDTH][MAP_HEIGHT];
-extern float playerX;
-extern float playerY;
-extern float playerAngle;
 
 struct Ray {
     float dirX, dirY;
@@ -35,12 +27,12 @@ void initializeOpenGL() {
     glEnable(GL_TEXTURE_2D);
 }
 
-void calculateRayDirection(Ray &ray, float cameraX) {
+void calculateRayDirection(Ray &ray, float cameraX, float playerAngle) {
     ray.dirX = cos(playerAngle) + cameraX * sin(playerAngle);
     ray.dirY = sin(playerAngle) - cameraX * cos(playerAngle);
 }
 
-void performDDA(Ray &ray, Wall &wall) {
+void performDDA(Ray &ray, Wall &wall, const int worldMap[MAP_WIDTH][MAP_HEIGHT]) {
     int hit = 0;
 
     while (hit == 0) {
@@ -81,44 +73,46 @@ void drawWall(int x, const Wall &wall, int w) {
     glEnd();
 }
 
-void castRays() {
+void castRays(const Player& player, const Map& map) {
     int w = glutGet(GLUT_WINDOW_WIDTH);
     int h = glutGet(GLUT_WINDOW_HEIGHT);
 
     initializeOpenGL();
 
+    const int (*worldMap)[MAP_WIDTH] = map.getWorldMap();
+
     for (int x = 0; x < w; x++) {
         float cameraX = 2 * x / float(w) - 1;
         Ray ray;
-        calculateRayDirection(ray, cameraX);
+        calculateRayDirection(ray, cameraX, player.getAngle());
 
-        ray.mapX = int(playerX);
-        ray.mapY = int(playerY);
+        ray.mapX = int(player.getX());
+        ray.mapY = int(player.getY());
 
         ray.deltaDistX = (ray.dirX == 0) ? 1e30 : fabs(1 / ray.dirX);
         ray.deltaDistY = (ray.dirY == 0) ? 1e30 : fabs(1 / ray.dirY);
 
         if (ray.dirX < 0) {
             ray.stepX = -1;
-            ray.sideDistX = (playerX - ray.mapX) * ray.deltaDistX;
+            ray.sideDistX = (player.getX() - ray.mapX) * ray.deltaDistX;
         } else {
             ray.stepX = 1;
-            ray.sideDistX = (ray.mapX + 1.0 - playerX) * ray.deltaDistX;
+            ray.sideDistX = (ray.mapX + 1.0 - player.getX()) * ray.deltaDistX;
         }
         if (ray.dirY < 0) {
             ray.stepY = -1;
-            ray.sideDistY = (playerY - ray.mapY) * ray.deltaDistY;
+            ray.sideDistY = (player.getY() - ray.mapY) * ray.deltaDistY;
         } else {
             ray.stepY = 1;
-            ray.sideDistY = (ray.mapY + 1.0 - playerY) * ray.deltaDistY;
+            ray.sideDistY = (ray.mapY + 1.0 - player.getY()) * ray.deltaDistY;
         }
 
         Wall wall;
-        performDDA(ray, wall);
+        performDDA(ray, wall, worldMap);
 
         float perpWallDist;
-        if (ray.side == 0) perpWallDist = (ray.mapX - playerX + (1 - ray.stepX) / 2) / ray.dirX;
-        else perpWallDist = (ray.mapY - playerY + (1 - ray.stepY) / 2) / ray.dirY;
+        if (ray.side == 0) perpWallDist = (ray.mapX - player.getX() + (1 - ray.stepX) / 2) / ray.dirX;
+        else perpWallDist = (ray.mapY - player.getY() + (1 - ray.stepY) / 2) / ray.dirY;
 
         wall.lineHeight = (int)(h / perpWallDist);
 
@@ -128,8 +122,8 @@ void castRays() {
         if (wall.drawEnd >= h) wall.drawEnd = h - 1;
 
         float wallX;
-        if (ray.side == 0) wallX = playerY + perpWallDist * ray.dirY;
-        else wallX = playerX + perpWallDist * ray.dirX;
+        if (ray.side == 0) wallX = player.getY() + perpWallDist * ray.dirY;
+        else wallX = player.getX() + perpWallDist * ray.dirX;
         wallX -= floor(wallX);
 
         wall.texCoordX = wallX;

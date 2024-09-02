@@ -4,5 +4,8 @@
 
 #pragma once
 
-void castRays();
+#include "Player.hpp"
+#include "Map.hpp"
+
+void castRays(const Player& player, const Map& map);
 
