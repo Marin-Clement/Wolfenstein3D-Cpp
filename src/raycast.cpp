@@ -10,8 +10,6 @@
 #define MAP_WIDTH 24
 #define MAP_HEIGHT 24
 
-GLuint shaderProgram;
-
 extern int worldMap[MAP_WIDTH][MAP_HEIGHT];
 extern float playerX;
 extern float playerY;
@@ -63,7 +61,7 @@ void performDDA(Ray &ray, Wall &wall) {
 }
 
 void drawWall(int x, const Wall &wall, int w) {
-    glBindTexture(GL_TEXTURE_2D, textures[std::to_string(wall.textureIndex - 1)]);
+    glBindTexture(GL_TEXTURE_2D, textures[std::to_string(wall.textureIndex)]);
 
     glBegin(GL_QUADS);
     glColor3f(1.0f, 1.0f, 1.0f);
