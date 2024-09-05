@@ -8,8 +8,7 @@
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
-#define STB_IMAGE_WRITE_IMPLEMENTATION
-#include "stb_image_write.h"
+#include "include/game/enemy.hpp"
 
 #define screenWidth 640
 #define screenHeight 480
@@ -20,14 +19,18 @@
 std::vector<double> zBuffer(screenWidth);
 
 struct Sprite {
-    double x, y; // Position
+    double x, y, z; // Position
     int texture; // Texture index
     double scale; // Scale factor
 };
 
 std::vector<Sprite> sprites = {
-    {20.5, 11.5, 7, 0.5}, // Example sprite with scale 0.5
-    {18.5, 4.5, 7, 0.5}   // Another example sprite with scale 0.5
+    {21, 11.5, 1, 8, 0.3}
+};
+
+std::vector<Enemy> enemies = {
+    Enemy(20.5, 11.5, 0.0, 7, 0.03, 0.8, 100),
+    Enemy(21, 11.5, 1, 7, 0.03, 0.3, 100)
 };
 
 int worldMap[mapWidth][mapHeight] =
@@ -90,33 +93,6 @@ void renderFPS() {
 
 std::vector<GLuint> textures;
 
-void removeColorFromImage(const std::string& inputFile, const std::string& outputFile, const unsigned char targetColor[3], float tolerance = 0.1f) {
-    int width, height, nrChannels;
-    unsigned char* data = stbi_load(inputFile.c_str(), &width, &height, &nrChannels, 4); // Load with RGBA channels
-    if (!data) {
-        std::cerr << "Failed to load image: " << inputFile << std::endl;
-        return;
-    }
-
-    for (int i = 0; i < width * height; ++i) {
-        unsigned char* pixel = data + i * 4; // Each pixel has 4 bytes (RGBA)
-        unsigned char r = pixel[0];
-        unsigned char g = pixel[1];
-        unsigned char b = pixel[2];
-
-        // Compute color distance
-        float distance = sqrtf(powf(r - targetColor[0], 2) + powf(g - targetColor[1], 2) + powf(b - targetColor[2], 2));
-
-        if (distance < tolerance * 255.0f) {
-            // Set alpha to 0 (transparent)
-            pixel[3] = 0;
-        }
-    }
-
-    stbi_write_png(outputFile.c_str(), width, height, 4, data, width * 4);
-    stbi_image_free(data);
-}
-
 void loadTextures() {
     std::vector<std::string> textureFiles = {
         "../assets/textures/105.bmp",
@@ -126,7 +102,8 @@ void loadTextures() {
         "../assets/textures/4.bmp",
         "../assets/textures/5.bmp",
         "../assets/textures/98.bmp",
-        "../assets/textures/soldier.png"
+        "../assets/textures/soldier.png",
+        "../assets/textures/surgpack.gif",
     };
 
     for (const auto& file : textureFiles) {
@@ -144,8 +121,6 @@ void loadTextures() {
                 glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
             }
 
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
             glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
             glGenerateMipmap(GL_TEXTURE_2D);
@@ -155,6 +130,18 @@ void loadTextures() {
         } else {
             std::cerr << "Failed to load texture: " << file << std::endl;
         }
+    }
+}
+
+void updateEnemies() {
+    for (auto& enemy : enemies) {
+        enemy.update(posX, posY);
+    }
+}
+
+void drawEnemies() {
+    for (const auto& enemy : enemies) {
+        enemy.draw(zBuffer, textures, posX, posY, screenWidth, screenHeight, planeX, planeY, dirX, dirY);
     }
 }
 
@@ -170,15 +157,19 @@ void drawSprites() {
 
         int spriteScreenX = int((screenWidth / 2) * (1 + transformX / transformY));
 
+        // Calculate sprite height and width based on the screen height and sprite scale
         int spriteHeight = abs(int(screenHeight / transformY * sprite.scale));
-        int drawStartY = screenHeight / 2; // Draw sprite on the ground
+        int drawStartY = -spriteHeight / 2 + screenHeight / 2 + sprite.z * spriteHeight;
         int drawEndY = drawStartY + spriteHeight;
-
 
         int spriteWidth = abs(int(screenHeight / transformY * sprite.scale));
         int drawStartX = -spriteWidth / 2 + spriteScreenX;
         if (drawStartX < 0) drawStartX = 0;
         int drawEndX = spriteWidth / 2 + spriteScreenX;
+
+        // if the sprite is out of the screen or behind the player then skip
+        if (drawStartX >= screenWidth || drawEndX <= 0 || transformY <= 0)
+            continue;
 
         glBindTexture(GL_TEXTURE_2D, textures[sprite.texture]);
 
@@ -186,7 +177,7 @@ void drawSprites() {
         for (int stripe = drawStartX; stripe < drawEndX; stripe++) {
             int texX = int(256 * (stripe - (-spriteWidth / 2 + spriteScreenX)) * 64 / spriteWidth) / 256;
             if (transformY > 0 && stripe > 0 && stripe < screenWidth && transformY < zBuffer[stripe]) {
-                double shade = 1.0 - transformY / fogDistance;
+                double shade = 1.0 / (1.0 + transformY);
                 glColor3f(shade, shade, shade);
 
                 glTexCoord2f(texX / 64.0, 0); glVertex2i(stripe, drawStartY);
@@ -228,7 +219,7 @@ void drawFloor() {
                 double ty = (floorY - cellY) * 64; // Assuming texture height is 64
 
                 // Darken the floor the further away
-                double shade = 1.0 - rowDistance / fogDistance;
+                double shade = 1.0 / (1.0 + rowDistance);
                 glColor3f(shade, shade, shade);
 
                 glTexCoord2f(tx / 64, ty / 64); glVertex2i(x, y);
@@ -274,7 +265,7 @@ void drawCeiling() {
                 double ty = (ceilingY - cellY) * 64; // Assuming texture height is 64
 
                 // darker the further away
-                double shade = 1.0 - rowDistance / fogDistance;
+                double shade = 1.0 / (1.0 + rowDistance);
                 glColor3f(shade, shade, shade);
 
                 glTexCoord2f(tx / 64, ty / 64); glVertex2i(x, y);
@@ -393,6 +384,7 @@ void renderScene() {
 
     // Draw the sprites
     drawSprites();
+    drawEnemies();
 
     glfwSwapBuffers(glfwGetCurrentContext());
 }
@@ -437,14 +429,10 @@ void processInput() {
 
 
 int main() {
-    unsigned char purple[3] = {152, 0, 136}; // Example purple color
-
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
         return -1;
     }
-
-
 
     GLFWwindow* window = glfwCreateWindow(screenWidth, screenHeight, "Raycaster", nullptr, nullptr);
     if (!window) {
@@ -452,6 +440,14 @@ int main() {
         glfwTerminate();
         return -1;
     }
+
+    //print openGL version
+    int major, minor, revision;
+    glfwGetVersion(&major, &minor, &revision);
+    std::cout << "OpenGL Version: " << major << "." << minor << "." << revision << std::endl;
+    std::cout << "Welcome to Raycaster!" << std::endl;
+    std::cout << "Controls: W, A, S, D to move, ESC to exit" << std::endl;
+
 
     glfwMakeContextCurrent(window);
 
@@ -463,6 +459,8 @@ int main() {
     glfwSetKeyCallback(window, keyCallback);
 
     glEnable(GL_TEXTURE_2D);
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     loadTextures();
 
     glMatrixMode(GL_PROJECTION);
@@ -482,6 +480,7 @@ int main() {
         lastFrameTime = currentFrameTime;
 
         processInput();
+        updateEnemies();
         renderScene();
         calculateFPS();
 
