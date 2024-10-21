@@ -26,6 +26,7 @@ include_directories(${GLM_INCLUDE_DIRS})
 include_directories(${STB_INCLUDE_DIRS})
 
 add_executable(WolfensteinGL main.cpp
-        stb_image.h
-        shaderUtils.cpp)
+        lib/stb_image.h
+        src/game/enemy.cpp
+        )
 target_link_libraries(WolfensteinGL ${OPENGL_gl_LIBRARY} ${GLFW_LIBRARIES} ${GLEW_LIBRARIES})
